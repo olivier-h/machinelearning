@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="UTF-8">
+    <title>Coursera Machine Learning Project Assignment by olivier-h</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="stylesheets/normalize.css" media="screen">
+    <link href='http://fonts.googleapis.com/css?family=Open+Sans:400,700' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/github-light.css" media="screen">
+  </head>
+  <body>
+    <section class="page-header">
+      <h1 class="project-name">Coursera Machine Learning Project Assignment</h1>
+      <h2 class="project-tagline">Coursera Project Assignment</h2>
+      <a href="https://github.com/olivier-h/machinelearning" class="btn">View on GitHub</a>
+      <a href="https://github.com/olivier-h/machinelearning/zipball/master" class="btn">Download .zip</a>
+      <a href="https://github.com/olivier-h/machinelearning/tarball/master" class="btn">Download .tar.gz</a>
+    </section>
+
+    <section class="main-content">
+      <h1>
+<a id="predicting-exercice-quality-through-accelerometers-data" class="anchor" href="#predicting-exercice-quality-through-accelerometers-data" aria-hidden="true"><span class="octicon octicon-link"></span></a>Predicting exercice quality through accelerometers data</h1>
+
+<h2>
+<a id="introduction" class="anchor" href="#introduction" aria-hidden="true"><span class="octicon octicon-link"></span></a>Introduction</h2>
+
+<p>In this project we will analyse the accelerometers measurements on the belt, forearm, arm, and dumbell of 6 participants who were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+We will try to fit a model to predict activity from measurements, using cross validation on a training dataset.
+Then, calculating the out of sample error comparing real and predicted activity will give us the model accuracy.</p>
+
+<h2>
+<a id="exploratory-data-analysis" class="anchor" href="#exploratory-data-analysis" aria-hidden="true"><span class="octicon octicon-link"></span></a>Exploratory data analysis</h2>
+
+<p>The training dataset is loaded from the "pml-training.csv" file.</p>
+
+<div class="highlight highlight-r"><pre><span class="pl-c"># Cleaning the environment</span>
+rm(<span class="pl-v">list</span> <span class="pl-k">=</span> ls(<span class="pl-v">all</span> <span class="pl-k">=</span> <span class="pl-c1">TRUE</span>))
+
+<span class="pl-c"># Setting the working directory</span>
+setwd(<span class="pl-s"><span class="pl-pds">"</span>E:<span class="pl-cce">\\</span>BIG DATA<span class="pl-cce">\\</span>Coursera - Data Scientist<span class="pl-cce">\\</span>08 - Practical Machine Learning<span class="pl-cce">\\</span>PA<span class="pl-pds">"</span></span>)
+
+<span class="pl-c"># Initialising the data file name containing the data (it must be in the working directory)</span>
+<span class="pl-v">trainingFileName</span> <span class="pl-k">=</span> <span class="pl-s"><span class="pl-pds">"</span>pml-training.csv<span class="pl-pds">"</span></span>
+
+<span class="pl-c"># Reading the data and putting it in a dataframe</span>
+<span class="pl-v">trainingdataset</span> <span class="pl-k">=</span> read.csv(<span class="pl-smi">trainingFileName</span>, <span class="pl-v">header</span> <span class="pl-k">=</span> <span class="pl-c1">TRUE</span>, <span class="pl-v">sep</span> <span class="pl-k">=</span> <span class="pl-s"><span class="pl-pds">"</span>,<span class="pl-pds">"</span></span>, <span class="pl-v">stringsAsFactors</span> <span class="pl-k">=</span> <span class="pl-c1">FALSE</span>)</pre></div>
+
+<p>This dataset has to be cleaned. Indeed, the first 8 columns are metadata, they are not needed in the model.
+Moreover, a few measurements have only NA values or only empty values.</p>
+
+<div class="highlight highlight-r"><pre><span class="pl-c"># Function to calculate data percentage in each column</span>
+<span class="pl-v">countPercentData</span> <span class="pl-k">=</span> <span class="pl-k">function</span>(<span class="pl-smi">v</span>) {
+    <span class="pl-v">count</span> <span class="pl-k">=</span> <span class="pl-c1">0</span>
+    <span class="pl-k">for</span> (<span class="pl-smi">i</span> <span class="pl-k">in</span> <span class="pl-c1">1</span><span class="pl-k">:</span>length(<span class="pl-smi">v</span>)) {
+        <span class="pl-k">if</span> (is.na(<span class="pl-smi">v</span>[<span class="pl-smi">i</span>]) <span class="pl-k">|</span> <span class="pl-smi">v</span>[<span class="pl-smi">i</span>] <span class="pl-k">==</span> <span class="pl-s"><span class="pl-pds">"</span><span class="pl-pds">"</span></span>) {
+            <span class="pl-v">count</span> <span class="pl-k">=</span> <span class="pl-smi">count</span> <span class="pl-k">+</span> <span class="pl-c1">1</span>
+        }
+    }
+    <span class="pl-c1">100</span> <span class="pl-k">-</span> <span class="pl-smi">count</span> <span class="pl-k">/</span> length(<span class="pl-smi">v</span>) <span class="pl-k">*</span><span class="pl-c1">100</span>
+}
+
+<span class="pl-c"># Getting data percentage in each column</span>
+<span class="pl-v">dataPercentColumn</span> <span class="pl-k">=</span> apply(<span class="pl-smi">trainingdataset</span>, <span class="pl-c1">2</span>, <span class="pl-k">function</span>(<span class="pl-smi">v</span>) countPercentData(<span class="pl-smi">v</span>))
+
+<span class="pl-c"># Removing colmns with less than 100% data and with metadata</span>
+<span class="pl-v">columnNames</span> <span class="pl-k">=</span> names((<span class="pl-smi">dataPercentColumn</span>[<span class="pl-smi">dataPercentColumn</span> <span class="pl-k">==</span> <span class="pl-c1">100</span>]))
+<span class="pl-v">columnNames</span> <span class="pl-k">=</span> <span class="pl-smi">columnNames</span>[<span class="pl-c1">8</span><span class="pl-k">:</span>length(<span class="pl-smi">columnNames</span>)]</pre></div>
+
+<p>We will only conserve columns with all values filled.</p>
+
+<div class="highlight highlight-r"><pre><span class="pl-c"># Selecting columns in the training dataset</span>
+<span class="pl-v">trainingdataset</span> <span class="pl-k">=</span> <span class="pl-smi">trainingdataset</span>[, <span class="pl-smi">columnNames</span>]
+
+<span class="pl-c"># Setting the outcome as a factor</span>
+<span class="pl-smi">trainingdataset</span><span class="pl-k">$</span><span class="pl-v">classe</span> <span class="pl-k">=</span> <span class="pl-k">factor</span>(<span class="pl-smi">trainingdataset</span><span class="pl-k">$</span><span class="pl-smi">classe</span>)</pre></div>
+
+<h2>
+<a id="model-analysis" class="anchor" href="#model-analysis" aria-hidden="true"><span class="octicon octicon-link"></span></a>Model analysis</h2>
+
+<p>We will use the caret package to perform cross validation. From the training dataset, we will create training (60%) and testing (40%) partitions.</p>
+
+<div class="highlight highlight-r"><pre><span class="pl-c"># Loading the needed libraries</span>
+library(<span class="pl-smi">caret</span>)
+library(<span class="pl-smi">randomForest</span>)
+
+<span class="pl-c"># Creating training and testing partitions (cross validation)</span>
+<span class="pl-v">inTrain</span> <span class="pl-k">=</span> createDataPartition(<span class="pl-v">y</span> <span class="pl-k">=</span> <span class="pl-smi">trainingdataset</span><span class="pl-k">$</span><span class="pl-smi">classe</span>, <span class="pl-v">p</span> <span class="pl-k">=</span> <span class="pl-c1">0.6</span>, <span class="pl-v">list</span> <span class="pl-k">=</span> <span class="pl-c1">FALSE</span>)
+<span class="pl-v">training</span> <span class="pl-k">=</span> <span class="pl-smi">trainingdataset</span>[<span class="pl-smi">inTrain</span>, ]
+<span class="pl-v">testing</span>  <span class="pl-k">=</span> <span class="pl-smi">trainingdataset</span>[<span class="pl-k">-</span><span class="pl-smi">inTrain</span>, ]</pre></div>
+
+<p>We will use the training partition to fit a random forest model with the "classe" variable as outcome and all other variables as predictors.</p>
+
+<div class="highlight highlight-r"><pre><span class="pl-c"># Fitting a random forest model on the training partition</span>
+<span class="pl-v">modFit</span> <span class="pl-k">=</span> randomForest(<span class="pl-smi">classe</span> <span class="pl-k">~</span> ., <span class="pl-v">data</span> <span class="pl-k">=</span> <span class="pl-smi">training</span>)</pre></div>
+
+<p>We will predict the outcome with the model on the testing partition.</p>
+
+<div class="highlight highlight-r"><pre><span class="pl-c"># Applying the model on the testing partition</span>
+<span class="pl-v">predictions</span> <span class="pl-k">=</span> predict(<span class="pl-smi">modFit</span>, <span class="pl-smi">testing</span>)</pre></div>
+
+<p>Printing a confusion matrix between real and predicted data will give us out of sample error.</p>
+
+<div class="highlight highlight-r"><pre><span class="pl-c"># Estimating the model accuracy comparing real and predicted data</span>
+confusionMatrix(<span class="pl-smi">predictions</span>, <span class="pl-smi">testing</span><span class="pl-k">$</span><span class="pl-smi">classe</span>)</pre></div>
+
+<pre><code>## Confusion Matrix and Statistics
+## 
+##           Reference
+## Prediction    A    B    C    D    E
+##          A 2231    8    0    0    0
+##          B    1 1505   23    0    0
+##          C    0    5 1345   10    0
+##          D    0    0    0 1276   14
+##          E    0    0    0    0 1428
+## 
+## Overall Statistics
+##                                        
+##                Accuracy : 0.9922       
+##                  95% CI : (0.99, 0.994)
+##     No Information Rate : 0.2845       
+##     P-Value [Acc &gt; NIR] : &lt; 2.2e-16    
+##                                        
+##                   Kappa : 0.9902       
+##  Mcnemar's Test P-Value : NA           
+## 
+## Statistics by Class:
+## 
+##                      Class: A Class: B Class: C Class: D Class: E
+## Sensitivity            0.9996   0.9914   0.9832   0.9922   0.9903
+## Specificity            0.9986   0.9962   0.9977   0.9979   1.0000
+## Pos Pred Value         0.9964   0.9843   0.9890   0.9891   1.0000
+## Neg Pred Value         0.9998   0.9979   0.9965   0.9985   0.9978
+## Prevalence             0.2845   0.1935   0.1744   0.1639   0.1838
+## Detection Rate         0.2843   0.1918   0.1714   0.1626   0.1820
+## Detection Prevalence   0.2854   0.1949   0.1733   0.1644   0.1820
+## Balanced Accuracy      0.9991   0.9938   0.9904   0.9950   0.9951
+</code></pre>
+
+<h2>
+<a id="conclusion" class="anchor" href="#conclusion" aria-hidden="true"><span class="octicon octicon-link"></span></a>Conclusion</h2>
+
+<p>A random forest model is particularly accurate on this case (&gt; 99%).
+We can conclude that activity quality can be accurately predicted from accelerometers measurements.</p>
+
+      <footer class="site-footer">
+        <span class="site-footer-owner"><a href="https://github.com/olivier-h/machinelearning">Coursera Machine Learning Project Assignment</a> is maintained by <a href="https://github.com/olivier-h">olivier-h</a>.</span>
+
+        <span class="site-footer-credits">This page was generated by <a href="https://pages.github.com">GitHub Pages</a> using the <a href="https://github.com/jasonlong/cayman-theme">Cayman theme</a> by <a href="https://twitter.com/jasonlong">Jason Long</a>.</span>
+      </footer>
+
+    </section>
+
+  
+  </body>
+</html>
+
